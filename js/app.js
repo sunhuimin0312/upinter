@@ -890,6 +890,683 @@ function csvEscape(v) {
   return s;
 }
 
+function buildHandoffBrands() {
+  const records = AppState.data.payments.records;
+  const brandMap = new Map();
+  records.forEach(r => {
+    const key = r.brand + '|' + r.region;
+    if (!brandMap.has(key)) {
+      brandMap.set(key, {
+        brand: r.brand,
+        region: r.region,
+        contractTypes: new Set(),
+        services: new Set(),
+        total: 0, suzCost: 0, margin: 0,
+        managers: new Set(),
+        statuses: new Set(),
+        records: []
+      });
+    }
+    const b = brandMap.get(key);
+    b.contractTypes.add(r.contractType);
+    (r.service || '').split('+').forEach(s => s.trim() && b.services.add(s.trim()));
+    b.total += Number(r.total || 0);
+    b.suzCost += Number(r.suzCost || 0);
+    b.margin += Number(r.margin || 0);
+    if (r.manager) b.managers.add(r.manager);
+    if (r.status) b.statuses.add(r.status);
+    b.records.push(r);
+  });
+  const regionOrder = { '서울': 0, '대구': 1, '김해': 2, '부산': 2 };
+  return [...brandMap.values()].map(b => {
+    const services = [...b.services];
+    const hasAccountOps = services.some(s => /계정운영/.test(s));
+    const has유상Seeding = services.some(s => /유상시딩/.test(s));
+    const has무상Seeding = services.some(s => /무상시딩/.test(s));
+    let opsKey = '유피단독';
+    if (b.contractTypes.has('유피 100%')) opsKey = '유피단독';
+    else if (hasAccountOps && has무상Seeding) opsKey = '혼합';
+    else if (hasAccountOps || has유상Seeding) opsKey = '수즈';
+    else if (has무상Seeding) opsKey = '유피';
+    let opsOwner = AppState.data.handoff.config.accountOpsOwner[opsKey] || '확인 필요';
+    let seedingKey = '없음';
+    if (has무상Seeding) seedingKey = '유피';
+    else if (has유상Seeding) seedingKey = '수즈';
+    const seedingOwnerLabel = AppState.data.handoff.config.seedingOwner[seedingKey] || '시딩 없음';
+    const worst = [...b.statuses].reduce((acc, s) => ({ '지연': 3, '대기': 2, '완료': 1 }[s] || 0) > acc ? ({ '지연': 3, '대기': 2, '완료': 1 }[s] || 0) : acc, 0);
+    const worstStatus = worst === 3 ? '지연' : worst === 2 ? '대기' : '완료';
+    const corpCertMap = AppState.data.handoff.config.corpCertMap;
+    const certKey = Object.keys(corpCertMap).find(k => b.brand.includes(k) || k.includes(b.brand));
+    const certStatus = certKey ? corpCertMap[certKey] : (b.contractTypes.has('유피 100%') && b.total < 700000 ? '불필요 (무상시딩 전용)' : '진행중 확인');
+    const accountOpsStatus = hasAccountOps
+      ? (worstStatus === '완료' ? '완료 · 운영중' : worstStatus === '대기' ? '진행중 · 선금 대기' : '지연 · 미입금')
+      : '불필요 (운영 X)';
+    const seedingStatus = (has무상Seeding || has유상Seeding)
+      ? ((worstStatus === '완료') ? '완료 · 배포종료' : worstStatus === '대기' ? '진행중 · KOC 배포 진행' : '지연 · 미입금')
+      : '불필요 (시딩 X)';
+    const brandPaid = b.records.reduce((s, r) => s + Number(r.paid || 0), 0);
+    const paymentStatus = brandPaid >= (b.total * 0.9) ? '완료 · 정상 입금'
+      : worstStatus === '완료' ? '완료 · 잔여 확인'
+      : worstStatus === '대기' ? '대기 · 입금 예정'
+      : '지연 · 미입금';
+    return {
+      ...b,
+      contractTypesList: [...b.contractTypes],
+      servicesList: services,
+      managersList: [...b.managers],
+      statusesList: [...b.statuses],
+      representativeContract: [...b.contractTypes][0] || '기본계약',
+      opsKey, opsOwner, seedingKey, seedingOwnerLabel,
+      worstStatus, certStatus, accountOpsStatus, seedingStatus, paymentStatus,
+      marginRate: b.total > 0 ? Math.round((b.margin / b.total) * 100) : 0
+    };
+  }).sort((a, b) => {
+    const ra = regionOrder[a.region] ?? 9; const rb = regionOrder[b.region] ?? 9;
+    if (ra !== rb) return ra - rb;
+    return (b.total || 0) - (a.total || 0);
+  });
+}
+
+function statusDotClass(status) {
+  if (status === '완료' || /완료/.test(status)) return 'status-dot-done';
+  if (status === '대기' || /대기|진행/.test(status)) return 'status-dot-wait';
+  if (status === '지연' || /지연|미입금/.test(status)) return 'status-dot-delay';
+  if (/불필요|없음/.test(status)) return 'status-dot-na';
+  return 'status-dot-wait';
+}
+
+function renderHandoff() {
+  const brands = buildHandoffBrands();
+  const records = AppState.data.payments.records;
+  const totalEstimate = records.reduce((s, r) => s + Number(r.total || 0), 0);
+  const totalSuz = records.reduce((s, r) => s + Number(r.suzCost || 0), 0);
+  const totalMargin = records.reduce((s, r) => s + Number(r.margin || 0), 0);
+  const totalPaid = records.reduce((s, r) => s + Number(r.paid || 0), 0);
+  const remain = totalEstimate - totalPaid;
+  const countDone = records.filter(r => r.status === '완료').length;
+  const countWait = records.filter(r => r.status === '대기').length;
+  const countDelay = records.filter(r => r.status === '지연').length;
+  const marginRate = totalEstimate > 0 ? Math.round((totalMargin / totalEstimate) * 100) : 0;
+  const payRate = totalEstimate > 0 ? Math.round((totalPaid / totalEstimate) * 100) : 0;
+
+  document.getElementById('handoffKpiRow').innerHTML = `
+    <div class="stat-card" style="border-left:4px solid var(--accent-indigo)">
+      <div class="stat-label">협업 브랜드 (중복제외)</div>
+      <div class="stat-value">${brands.length}</div>
+      <div class="stat-sub">서울 ${brands.filter(b=>b.region==='서울').length} · 대구 ${brands.filter(b=>b.region==='대구').length}</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid var(--accent-blue)">
+      <div class="stat-label">총 견적액 (8월+9월)</div>
+      <div class="stat-value">₩ ${formatNumber(totalEstimate)}</div>
+      <div class="stat-sub">입금 ${payRate}% · 미수금 ₩ ${formatNumber(remain)}</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid var(--accent-green)">
+      <div class="stat-label">UP 마진 (수익)</div>
+      <div class="stat-value">₩ ${formatNumber(totalMargin)}</div>
+      <div class="stat-sub">마진율 ${marginRate}% · 수즈원가 ₩ ${formatNumber(totalSuz)}</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid var(--accent-orange)">
+      <div class="stat-label">결제 상태</div>
+      <div class="stat-value">${countDone}완료 · ${countWait}대기 · ${countDelay}지연</div>
+      <div class="stat-sub">총 ${records.length}건</div>
+    </div>`;
+
+  document.getElementById('handoffBrandGrid').innerHTML = brands.map(b => `
+    <article class="handoff-brand-card">
+      <div class="hbc-head">
+        <div>
+          <span class="region-tag region-${b.region.replace('·','').replace('부산','김해')}">${b.region}</span>
+          <span class="hbc-brand">${b.brand}</span>
+        </div>
+        <span class="status-badge ${b.worstStatus==='완료'?'status-done':b.worstStatus==='대기'?'status-recruit':'status-delay'}" style="font-size:11px;padding:3px 8px">${b.worstStatus}</span>
+      </div>
+      <div class="hbc-body">
+        <div class="hbc-row"><span class="hbc-k">계약형식</span><span class="hbc-v contract-tag">${b.representativeContract}</span></div>
+        <div class="hbc-row"><span class="hbc-k">계정운영</span><span class="hbc-v">${b.opsOwner}</span></div>
+        <div class="hbc-row"><span class="hbc-k">시딩 담당</span><span class="hbc-v">${b.seedingOwnerLabel}</span></div>
+        <div class="hbc-row"><span class="hbc-k">영업 / PM</span><span class="hbc-v" style="font-weight:600;color:var(--accent-indigo)">${b.managersList.join(' · ') || '손혜민'}</span></div>
+      </div>
+      <div class="hbc-footer">
+        <div><span style="color:var(--text-tertiary);font-size:11px">견적</span> <strong style="font-size:13px">₩ ${formatNumber(b.total)}</strong></div>
+        <div><span style="color:var(--text-tertiary);font-size:11px">UP마진</span> <strong style="font-size:13px;color:var(--accent-green)">₩ ${formatNumber(b.margin)} (${b.marginRate}%)</strong></div>
+      </div>
+    </article>`).join('');
+
+  const tbody = document.querySelector('#handoffMatrixTable tbody');
+  const tfoot = document.querySelector('#handoffMatrixTable tfoot');
+  tbody.innerHTML = brands.map(b => `
+    <tr>
+      <td style="font-weight:700;color:var(--text-primary);white-space:nowrap">${b.brand}</td>
+      <td><span class="region-tag region-${b.region.replace('·','').replace('부산','김해')}" style="font-size:11px;padding:2px 7px">${b.region}</span></td>
+      <td><span class="contract-tag">${b.representativeContract}</span></td>
+      <td style="color:var(--accent-blue);font-weight:500">${b.opsOwner.replace(' (디지털네이티브스)','').replace(' / UP INTER','').replace(' (全과정 UP 직접운영)','')}</td>
+      <td style="color:var(--accent-teal);font-weight:500">${b.seedingOwnerLabel.replace(' 대행 (유상시딩)','').replace(' 팀 (무상시딩 직접 운영)','').replace(' (계정운영만)','')}</td>
+      <td style="font-weight:600;color:var(--accent-indigo);white-space:nowrap">${b.managersList.join(' · ') || '손혜민'}</td>
+      <td class="num" style="font-variant-numeric:tabular-nums">${formatNumberRaw(b.total)}</td>
+      <td class="num" style="font-variant-numeric:tabular-nums;color:var(--accent-green);font-weight:700">${formatNumberRaw(b.margin)} <span style="font-weight:400;color:var(--text-tertiary);font-size:11px">(${b.marginRate}%)</span></td>
+      <td><span class="status-badge ${b.worstStatus==='완료'?'status-done':b.worstStatus==='대기'?'status-recruit':'status-delay'}" style="font-size:11px;padding:3px 8px">${b.worstStatus}</span></td>
+    </tr>`).join('');
+  tfoot.innerHTML = `
+    <tr style="background:var(--surface-alt);font-weight:700">
+      <td colspan="6" style="text-align:right;padding-right:16px">합 계 (${brands.length} 브랜드 · ${records.length}건)</td>
+      <td class="num" style="font-variant-numeric:tabular-nums">${formatNumberRaw(totalEstimate)}</td>
+      <td class="num" style="font-variant-numeric:tabular-nums;color:var(--accent-green)">${formatNumberRaw(totalMargin)} (${marginRate}%)</td>
+      <td>입금 ${payRate}%</td>
+    </tr>`;
+
+  document.getElementById('handoffStatusGrid').innerHTML = brands.map(b => `
+    <article class="handoff-status-card">
+      <div class="hsc-head">
+        <span class="region-tag region-${b.region.replace('·','').replace('부산','김해')}" style="font-size:10px;padding:2px 6px">${b.region}</span>
+        <strong>${b.brand}</strong>
+        <span class="status-badge ${b.worstStatus==='완료'?'status-done':b.worstStatus==='대기'?'status-recruit':'status-delay'}" style="font-size:10px;padding:2px 7px;margin-left:auto">결제 ${b.worstStatus}</span>
+      </div>
+      <div class="hsc-list">
+        <div class="hsc-item">
+          <span class="hsc-status-dot ${statusDotClass(b.certStatus)}"></span>
+          <span class="hsc-label">기업인증</span>
+          <span class="hsc-value">${b.certStatus}</span>
+        </div>
+        <div class="hsc-item">
+          <span class="hsc-status-dot ${statusDotClass(b.accountOpsStatus)}"></span>
+          <span class="hsc-label">계정 운영</span>
+          <span class="hsc-value">${b.accountOpsStatus}</span>
+        </div>
+        <div class="hsc-item">
+          <span class="hsc-status-dot ${statusDotClass(b.seedingStatus)}"></span>
+          <span class="hsc-label">시딩 (KOC)</span>
+          <span class="hsc-value">${b.seedingStatus}</span>
+        </div>
+        <div class="hsc-item">
+          <span class="hsc-status-dot ${statusDotClass(b.paymentStatus)}"></span>
+          <span class="hsc-label">브랜드 입금</span>
+          <span class="hsc-value">${b.paymentStatus} · ${(b.total - b.records.reduce((s,r)=>s+Number(r.paid||0),0)) > 0 ? '미수 ₩ ' + formatNumber(b.total - b.records.reduce((s,r)=>s+Number(r.paid||0),0)) : '총 ' + formatNumber(b.total)}</span>
+        </div>
+      </div>
+      <div class="hsc-foot">
+        <span>${b.managersList.join(' · ') || '손혜민'} 담당</span>
+        <span style="color:var(--accent-green);font-weight:600">${b.marginRate}% 마진</span>
+      </div>
+    </article>`).join('');
+}
+
+/* ============================================================
+   01 브랜드 계약 관리 (Contract Management · 31 브랜드)
+============================================================ */
+
+AppState.contractFilters = {
+  region: 'all',
+  type: 'all',
+  status: 'all',
+  search: ''
+};
+
+function buildBrandMaster() {
+  const records = AppState.data.payments.records;
+  const handoffMap = new Map();
+  try { buildHandoffBrands().forEach(b => handoffMap.set(b.brand + '|' + b.region, b)); } catch(e) {}
+
+  const payBrands = new Map();
+  records.forEach(r => {
+    const key = r.brand + '|' + r.region;
+    if (!payBrands.has(key)) {
+      const hb = handoffMap.get(key) || {};
+      payBrands.set(key, {
+        key, brand: r.brand, region: r.region,
+        contractNo: r.invoiceNo ? r.invoiceNo.replace(/-[^-]+$/,'-'+r.invoiceNo.split('-').pop().padStart(3,'0')) : '',
+        fileOnly: false,
+        periodStart: '2026-08-01',
+        periodEnd:   '2026-12-31',
+        file: '—',
+        contractType: r.contractType,
+        contractTypes: new Set([r.contractType]),
+        services: new Set(),
+        managers: new Set(),
+        statuses: new Set(),
+        monthPayments: {},
+        total: 0, suzCost: 0, margin: 0, paid: 0,
+        worstWeight: 0,
+        representativeContract: hb.representativeContract || r.contractType,
+        opsOwner: hb.opsOwner || '계정운영 담당 확인 필요',
+        opsKey: hb.opsKey || '혼합',
+        seedingOwnerLabel: hb.seedingOwnerLabel || '시딩 담당 확인 필요',
+        seedingKey: hb.seedingKey || '없음',
+        corpCertStatus: hb.corpCertStatus || '확인 중',
+        managersList: hb.managersList || [],
+        marginRate: hb.marginRate || 0,
+        worstStatus: hb.worstStatus || '완료',
+        notes: r.memo || ''
+      });
+    }
+    const b = payBrands.get(key);
+    if (r.service) (r.service + '').split('+').forEach(s => s.trim() && b.services.add(s.trim()));
+    if (r.manager) b.managers.add(r.manager);
+    if (r.status) { b.statuses.add(r.status); const w = r.status==='지연'?3:r.status==='대기'?2:r.status==='완료'?1:0; if (w>b.worstWeight) b.worstWeight=w; }
+    const m = Number(r.month);
+    if (!b.monthPayments[m]) b.monthPayments[m] = [];
+    b.monthPayments[m].push(r);
+    b.total += Number(r.total||0); b.suzCost += Number(r.suzCost||0); b.margin += Number(r.margin||0); b.paid += Number(r.paid||0);
+  });
+
+  const payList = [...payBrands.values()].map(b => {
+    b.managersList = [...b.managers];
+    const svcList = [...b.services];
+    if (!b.opsKey) {
+      const onlyUP = svcList.every(s => /유피/.test(s) || /유피전용/.test(s)) && /유피 100%|유피단독/.test(b.contractType);
+      const hasSuzOps = svcList.some(s => /수즈/.test(s) && /계정/.test(s));
+      const hasUPSz = svcList.some(s => /무상시딩/.test(s) || /유피/.test(s) || /유피전용/.test(s));
+      if (onlyUP) b.opsKey = '유피단독';
+      else if (hasSuzOps && hasUPSz) b.opsKey = '혼합';
+      else if (hasSuzOps) b.opsKey = '수즈';
+      else b.opsKey = '유피';
+    }
+    b.opsOwner = (AppState.data.handoff && AppState.data.handoff.config.accountOpsOwner[b.opsKey]) || b.opsKey;
+    if (!b.seedingKey) {
+      if (svcList.some(s => /유상시딩/.test(s) && /수즈/.test(s))) b.seedingKey = '수즈';
+      else if (svcList.some(s => /무상시딩/.test(s) || /시딩 \(유피/.test(s) || /시딩 \(유피전용\)/.test(s))) b.seedingKey = '유피';
+      else b.seedingKey = '없음';
+    }
+    b.seedingOwnerLabel = (AppState.data.handoff && AppState.data.handoff.config.seedingOwner[b.seedingKey]) || b.seedingKey;
+    b.worstStatus = b.worstWeight===3?'지연':b.worstWeight===2?'대기':b.worstWeight===1?'완료':'대기';
+    b.marginRate = b.total>0 ? Math.round((b.margin/b.total)*100) : 0;
+    b.remain = Math.max(0, b.total - b.paid);
+    b.representativeContract = [...b.contractTypes][0] || b.contractType;
+    return b;
+  });
+
+  const seeding = AppState.data.seedingRecords || [];
+  const monthSeedMap = new Map();
+  seeding.forEach(s => {
+    const k = s.brand + '|' + s.month;
+    monthSeedMap.set(k, s);
+  });
+  const septBefore = (AppState.data.septemberPlans||{}).before || {items:[]};
+  const septRecruit = (AppState.data.septemberPlans||{}).recruit || {items:[]};
+
+  const extraBrands = [];
+  const xhsContracts = (AppState.data.contracts||{}).brands || [];
+  xhsContracts.forEach(c => {
+    const key = c.brand + '|' + c.region;
+    if (payBrands.has(key)) return;
+    extraBrands.push({
+      key, brand: c.brand, region: c.region,
+      contractNo: c.contractNo, fileOnly: true,
+      periodStart: c.periodStart, periodEnd: c.periodEnd,
+      file: c.file, contractType: c.contractType || '업무협약',
+      contractTypes: new Set([c.contractType]),
+      services: new Set(), managers: new Set([c.manager||'손혜민']),
+      statuses: new Set(),
+      monthPayments: {}, total:0, suzCost:0, margin:0, paid:0,
+      worstWeight: 0, representativeContract: c.contractType,
+      opsOwner: '입력 예정', opsKey: '혼합',
+      seedingOwnerLabel: '시딩 없음', seedingKey: '없음',
+      corpCertStatus: '확인 중', managersList: [c.manager||'손혜민'],
+      marginRate: 0, worstStatus: '미집행',
+      remain: 0, notes: c.notes || '추후 비용·서비스 입력 예정'
+    });
+  });
+
+  const all = [...payList, ...extraBrands].map(b => {
+    b.seedingMonth = {};
+    const aliases = [b.brand];
+    if (b.brand.indexOf(' ')>=0) aliases.push(b.brand.split(' ')[0]);
+    [6,7,8,9].forEach(mo => {
+      let found = null;
+      for (const a of aliases) {
+        const k = a + '|' + mo;
+        if (monthSeedMap.has(k)) { found = monthSeedMap.get(k); break; }
+      }
+      if (found) b.seedingMonth[mo] = found;
+    });
+    b.seedingMonth[9] = b.seedingMonth[9] || (() => {
+      const sb = septBefore.items.find(i => aliases.some(a => (i.brand||'').indexOf(a)>=0));
+      const sr = septRecruit.items.find(i => aliases.some(a => (i.brand||'').indexOf(a)>=0));
+      if (sb || sr) return { month:9, brand:b.brand, status:(sr?'모집 중':'방문 확정 전'), visitConfirm:null, visitDone:null, deploy:null, apply:null, select:null, progress:(sr?sr.slot:sb?sb.slot:null), _plan:true, _derivedBefore:null, _derivedSlot:(sr?sr.slot:sb?sb.slot:null) };
+      return null;
+    })();
+    Object.keys(b.seedingMonth).forEach(mo => {
+      const s = b.seedingMonth[mo]; if (!s || s._plan) return;
+      const sel = Number(s.select||0), vc = Number(s.visitConfirm||0), vd = Number(s.visitDone||0), dp = Number(s.deploy||0);
+      s._derivedBefore = Math.max(0, sel - vc);
+      s._derivedSlot = s.progress ? s.progress : (sel>0?sel:(vc>0?vc:null));
+    });
+    const allSeeding = Object.values(b.seedingMonth).filter(Boolean);
+    b.hasSeeding = allSeeding.length > 0;
+    b.reportList = [];
+    if (b.fileOnly) {
+      b.reportList.push({month:'8월',report:'계약서 등록', status:'보고서 미입력', dot:'na'});
+    } else {
+      [7,8,9].forEach(mo => {
+        if (b.monthPayments[mo]) {
+          const done = b.monthPayments[mo].every(r => r.status==='완료');
+          const wait = b.monthPayments[mo].some(r => r.status==='대기');
+          b.reportList.push({
+            month: mo+'월',
+            report: mo===8 ? '8월 청산 보고서' : mo===9 ? '9월 청구·请款' : mo+'월 결제 보고서',
+            status: done ? '제출 완료' : wait ? '대기 (청구 중)' : '미입금 지연',
+            dot: done ? 'done' : wait ? 'wait' : 'delay',
+            amount: b.monthPayments[mo].reduce((s,r)=>s+Number(r.total||0),0)
+          });
+        }
+      });
+      if (b.hasSeeding) b.reportList.push({month:'월간시딩', report:'무상시딩 월간 결과', status: b.seedingMonth[8] ? '8월 데이터 반영 완료' : '시딩 데이터 없음', dot: b.seedingMonth[8] ? 'done' : 'na'});
+    }
+    b.posts = (AppState.data.seedingPosts || []).filter(p => p.brandKey === b.key);
+    return b;
+  });
+
+  const cmp = (a,b) => {
+    const score = x => (x.fileOnly?1000:0) - x.total;
+    return score(a) - score(b);
+  };
+  return all.sort(cmp);
+}
+
+function getFilteredBrandMaster() {
+  const f = AppState.contractFilters;
+  let list = buildBrandMaster();
+  if (f.region !== 'all') {
+    list = list.filter(b => {
+      if (f.region === '김해·부산') return b.region === '김해' || b.region === '부산' || b.region === '김해·부산';
+      return b.region === f.region;
+    });
+  }
+  if (f.type !== 'all') {
+    if (f.type === '파일만등록') list = list.filter(b => b.fileOnly);
+    else if (f.type === '유피100') list = list.filter(b => b.opsKey === '유피단독' || /유피 100%/.test(b.representativeContract));
+    else if (f.type === '수즈대행') list = list.filter(b => b.opsKey === '수즈' || b.opsKey === '혼합');
+  }
+  if (f.status !== 'all') {
+    if (f.status === '미집행') list = list.filter(b => b.fileOnly);
+    else list = list.filter(b => !b.fileOnly && b.worstStatus === f.status);
+  }
+  if (f.search) {
+    const q = f.search.trim().toLowerCase();
+    if (q) list = list.filter(b => (b.brand+' '+b.contractNo+' '+b.representativeContract+' '+(b.managersList||[]).join(' ')).toLowerCase().indexOf(q)>=0);
+  }
+  return list;
+}
+
+function renderContracts() {
+  const brands = getFilteredBrandMaster();
+  const all = buildBrandMaster();
+  const fileCount = ((AppState.data.contracts||{}).filesFromScreenshot||[]).length;
+  const totalFilesAll = ((AppState.data.contracts||{}).filesFromScreenshot||[]).length;
+  document.getElementById('contractFileCount').textContent = fileCount;
+  document.getElementById('contractBrandCount').textContent = brands.length;
+  document.getElementById('contractCountBadge').textContent = brands.length + '개';
+
+  const totalEst = brands.reduce((s,b)=>s+b.total,0);
+  const totalMg  = brands.reduce((s,b)=>s+b.margin,0);
+  const totalPaidAll = brands.reduce((s,b)=>s+b.paid,0);
+  const remainAll = Math.max(0, totalEst - totalPaidAll);
+  const mgRate = totalEst>0 ? Math.round((totalMg/totalEst)*100) : 0;
+  const payRate = totalEst>0 ? Math.round((totalPaidAll/totalEst)*100) : 0;
+  const cntExec = brands.filter(b=>!b.fileOnly).length;
+  const cntFile = brands.filter(b=>b.fileOnly).length;
+  const fileSubText = totalFilesAll === 0 ? '등록된 계약파일 없음' :
+    brands.filter(b=>b.fileOnly).length > 0
+      ? brands.filter(b=>b.fileOnly).map(b=>b.brand).slice(0,3).join('·') + (brands.filter(b=>b.fileOnly).length>3?' 등':'')
+      : '전체 ' + totalFilesAll + '개 (필터 외 포함)';
+  document.getElementById('contractKpiRow').innerHTML = `
+    <div class="stat-card" style="border-left:4px solid #0071e3">
+      <div class="stat-label">2026 계약 브랜드</div>
+      <div class="stat-value">${brands.length}</div>
+      <div class="stat-sub">데이터 등록 ${cntExec} · 파일만 ${cntFile}</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #bf5af2">
+      <div class="stat-label">총 견적액 (7월+8월+9월)</div>
+      <div class="stat-value">₩ ${formatNumber(totalEst)}</div>
+      <div class="stat-sub">입금 ${payRate}% · 미수 ₩ ${formatNumber(remainAll)}</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #30d158">
+      <div class="stat-label">UP 마진 (수익)</div>
+      <div class="stat-value">₩ ${formatNumber(totalMg)}</div>
+      <div class="stat-sub">마진율 ${mgRate}% (${cntExec}건 집행)</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #ff9f0a">
+      <div class="stat-label">계약 파일 (9. 계약 폴더)</div>
+      <div class="stat-value">${fileCount}</div>
+      <div class="stat-sub">${fileSubText}</div>
+    </div>`;
+
+  document.getElementById('contractBrandGrid').innerHTML = brands.map(b => {
+    const statusCls = b.fileOnly ? 'status-distribute' : b.worstStatus==='완료'?'status-done':b.worstStatus==='대기'?'status-recruit':'status-delay';
+    const period = (b.periodStart && b.periodStart !== '—' ? b.periodStart.slice(5) + ' ~ ' + b.periodEnd.slice(5) : '기간 미입력');
+    const opsTagCls = b.opsKey==='유피단독'||b.opsKey==='유피' ? 'tag-ops-up' : 'tag-ops-suz';
+    const seedTagCls = b.seedingKey==='유피' ? 'tag-seed-up' : b.seedingKey==='수즈' ? 'tag-seed-suz' : 'tag-manager';
+    const managers = (b.managersList && b.managersList.length ? b.managersList.join('·') : '손혜민');
+    const marginCls = b.marginRate>=30 ? 'margin-good' : '';
+    return `
+      <article class="cb-card ${b.fileOnly?'is-fileonly':''}" onclick="openBrandModal('${b.key.replace(/'/g,"\\'")}')">
+        <div class="cb-card-head">
+          <div style="min-width:0;flex:1">
+            <div class="cb-contract-no">${b.contractNo || '계약번호 미입력'}</div>
+            <h4 class="cb-brand-name">${b.brand}</h4>
+          </div>
+          <span class="cb-region-tag region-${b.region.replace(/·/g,'').replace('부산','김해').replace(/ /g,'')}">${b.region}</span>
+        </div>
+        <div class="cb-meta">
+          <span class="cb-tag" style="font-weight:700">${b.representativeContract}</span>
+          <span class="cb-tag ${opsTagCls}">${b.opsOwner.split(' ')[0]}</span>
+          <span class="cb-tag ${seedTagCls}">${b.seedingOwnerLabel.split(' ')[0]}</span>
+          <span class="cb-tag tag-manager">${managers}</span>
+        </div>
+        <div class="cb-sum">
+          <div class="cb-sum-item"><span class="cb-sum-label">총 견적</span><span class="cb-sum-value won">₩ ${formatNumber(b.total)}</span></div>
+          <div class="cb-sum-item"><span class="cb-sum-label">UP 마진</span><span class="cb-sum-value won ${marginCls}">₩ ${formatNumber(b.margin)} (${b.marginRate}%)</span></div>
+          <div class="cb-sum-item"><span class="cb-sum-label">브랜드 입금</span><span class="cb-sum-value won ${b.remain>0&&!b.fileOnly?'remain':''}">₩ ${formatNumber(b.paid)}</span></div>
+          <div class="cb-sum-item"><span class="cb-sum-label">미수금</span><span class="cb-sum-value won remain">₩ ${formatNumber(b.remain)}</span></div>
+        </div>
+        <div class="cb-foot">
+          <span class="cb-period">📅 ${period}</span>
+          <span class="cb-status-pill ${statusCls}">${b.fileOnly ? '📄 파일만' : b.worstStatus}</span>
+        </div>
+      </article>`;
+  }).join('');
+}
+
+function openBrandModal(key) {
+  const brands = buildBrandMaster();
+  const b = brands.find(x => x.key === key);
+  if (!b) return;
+  const elOv = document.getElementById('brandModalOverlay');
+  document.getElementById('bm-contractno').textContent = (b.contractNo || '계약번호 미입력') + (b.file && b.file !== '—' ? '  ·  📄 ' + b.file : '');
+  document.getElementById('bm-title').textContent = b.brand;
+  document.getElementById('bm-subtitle').innerHTML = `
+    <span>🏙️ ${b.region}</span>
+    <span>📝 ${b.representativeContract}</span>
+    <span>👤 ${(b.managersList||[]).join(' · ') || '손혜민'} 담당</span>`;
+
+  const months = [];
+  for (let m = 7; m <= 9; m++) if (b.monthPayments[m]) months.push(m);
+  const monthRows = months.map(mo => {
+    const recs = b.monthPayments[mo] || [];
+    const tt = recs.reduce((s,r)=>s+Number(r.total||0),0);
+    const ss = recs.reduce((s,r)=>s+Number(r.suzCost||0),0);
+    const mm = recs.reduce((s,r)=>s+Number(r.margin||0),0);
+    const pp = recs.reduce((s,r)=>s+Number(r.paid||0),0);
+    const rr = Math.max(0, tt - pp);
+    const stat = recs.every(r=>r.status==='완료') ? '완료' : recs.some(r=>r.status==='지연') ? '지연' : '대기';
+    const statCls = stat==='완료'?'good':stat==='대기'?'':'bad';
+    return `<tr>
+      <td style="white-space:nowrap"><strong>${mo}월</strong> <span class="status-badge ${stat==='완료'?'status-done':stat==='대기'?'status-recruit':'status-delay'}" style="font-size:10px;padding:2px 7px;margin-left:4px">${stat}</span></td>
+      <td class="num">₩ ${formatNumber(tt)}</td>
+      <td class="num">₩ ${formatNumber(ss)}</td>
+      <td class="num">₩ ${formatNumber(mm)} <span style="color:#86868b;font-weight:600;font-size:11px">(${tt>0?Math.round(mm/tt*100):0}%)</span></td>
+      <td class="num">₩ ${formatNumber(pp)}</td>
+      <td class="num ${rr>0?'bad':''}">₩ ${formatNumber(rr)}</td>
+      <td style="text-align:center"><span class="${statCls}">${stat}</span></td>
+    </tr>`;
+  }).join('');
+  const totEst = months.reduce((s,m)=>s+(b.monthPayments[m]||[]).reduce((a,r)=>a+Number(r.total||0),0),0);
+  const totSuz = months.reduce((s,m)=>s+(b.monthPayments[m]||[]).reduce((a,r)=>a+Number(r.suzCost||0),0),0);
+  const totMg  = months.reduce((s,m)=>s+(b.monthPayments[m]||[]).reduce((a,r)=>a+Number(r.margin||0),0),0);
+  const totPaid= months.reduce((s,m)=>s+(b.monthPayments[m]||[]).reduce((a,r)=>a+Number(r.paid||0),0),0);
+  const totRem = Math.max(0, totEst - totPaid);
+  const mgR = totEst>0 ? Math.round(totMg/totEst*100) : 0;
+  const monthTbl = months.length ? `<table class="bm-table">
+    <thead><tr><th>월 / 상태</th><th>견적액</th><th>수즈원가</th><th>UP 마진</th><th>브랜드입금</th><th>미수금</th><th style="text-align:center">결제</th></tr></thead>
+    <tbody>${monthRows}</tbody>
+    <tfoot><tr>
+      <td>합계 (${months.length}개월)</td>
+      <td class="num">₩ ${formatNumber(totEst)}</td>
+      <td class="num">₩ ${formatNumber(totSuz)}</td>
+      <td class="num">₩ ${formatNumber(totMg)} <span style="font-weight:600;color:#117c32">(${mgR}%)</span></td>
+      <td class="num">₩ ${formatNumber(totPaid)}</td>
+      <td class="num">₩ ${formatNumber(totRem)}</td>
+      <td style="text-align:center;font-weight:800">${b.worstStatus}</td>
+    </tr></tfoot></table>` : `<div class="bm-seed-empty">아직 결제 데이터가 입력되지 않았습니다. 계약 파일만 등록된 상태입니다.</div>`;
+
+  const svcChips = [...(b.services||new Set())].length ? [...b.services].map(s => {
+    const isSuz = /수즈/.test(s); const isUP = /유피/.test(s) || /유피전용/.test(s) || /무상시딩/.test(s);
+    return `<span class="bm-chip ${isSuz?'bmc-suz':isUP?'bmc-up':''}">${s.replace(/\(수즈\)/g,'·수즈').replace(/\(유피전용\)/g,'·유피').replace(/유피전용/g,'·유피')}</span>`;
+  }).join('') : `<span class="bm-chip bmc-up">서비스 내역 추후 입력</span>`;
+
+  const seedList = [];
+  [6,7,8,9].forEach(mo => { if (b.seedingMonth[mo]) seedList.push({month:mo, s:b.seedingMonth[mo]}); });
+  const seedHtml = seedList.length ? `<div class="bm-seed-grid">${seedList.map(({month:mo,s})=>{
+    const apply = s.apply ?? '—';
+    const sel = s.select ?? '—';
+    const vc = s.visitConfirm ?? '—';
+    const vd = s.visitDone ?? (s._plan?null:'—');
+    const dp = s.deploy ?? (s._plan?null:'—');
+    const before = s._derivedBefore != null ? s._derivedBefore : (s.before ?? '—');
+    const slot = s._derivedSlot != null ? s._derivedSlot : (s.progressCount ?? s.progress ?? '—');
+    return `
+    <div class="bm-seed-month">
+      <div class="bm-seed-m">📌 ${mo}월 ${s._plan?'(예정)':''} <span class="status-badge ${s.status==='완료'?'status-done':s.status==='모집 중'?'status-recruit':s.status==='검수·배포'||s.status==='배포 중'?'status-distribute':s.status==='제품 확인'||s.status==='제품 발송'?'status-delay':s.status==='제공 제품 확인'||s.status==='제공 제품 발송 준비'?'status-recruit':'status-delay'}" style="font-size:10px;padding:2px 6px;margin-left:4px;float:right">${s.status||'—'}</span></div>
+      <div class="bm-seed-item"><span>신청 (apply)</span><b>${apply}</b></div>
+      <div class="bm-seed-item"><span>선정 (select)</span><b>${sel}</b></div>
+      <div class="bm-seed-item"><span>방문 확정</span><b>${vc}</b></div>
+      ${vd!=null?`<div class="bm-seed-item"><span>방문 완료</span><b>${vd}</b></div>`:''}
+      ${dp!=null?`<div class="bm-seed-item"><span>배포 완료</span><b>${dp}</b></div>`:''}
+      <div class="bm-seed-item" style="background:#fff9e6"><span>배포 전 (선정-방문)</span><b>${before}</b></div>
+      <div class="bm-seed-item" style="background:#eef7ff"><span>KOC 슬롯</span><b>${slot}</b></div>
+    </div>`}).join('')}</div>` : `<div class="bm-seed-empty">해당 브랜드는 무상시딩 내역이 없습니다. (계정운영 또는 유상시딩만)</div>`;
+
+  const reports = (b.reportList||[]);
+  const reportHtml = reports.length ? `<div class="bm-report-row">${reports.map(r=>`
+    <div class="bm-report-card">
+      <span class="bm-report-dot ${r.dot==='done'?'status-dot-done':r.dot==='wait'?'status-dot-wait':r.dot==='delay'?'status-dot-delay':'status-dot-na'}"></span>
+      <div class="bm-report-txt">
+        <span class="bm-report-label">${r.month}</span>
+        <span class="bm-report-value ${r.dot==='done'?'good':r.dot==='wait'?'warn':r.dot==='delay'?'bad':''}">${r.report}</span>
+        <span class="bm-report-label" style="color:#6e6e73">${r.status}${r.amount?'  ·  ₩ '+formatNumber(r.amount):''}</span>
+      </div>
+    </div>`).join('')}</div>` : `<div class="bm-seed-empty">보고서 내역 없음</div>`;
+
+  const posts = (b.posts||[]);
+  const sheetLinksUnique = [...new Set(posts.map(p=>p.sheetUrl).filter(Boolean))];
+  const postsHtml = (() => {
+    if (!posts.length) return `<div class="bm-seed-empty">등록된 种草(포스팅) 내역이 없습니다. 或 데이터 시트 연결 대기 중</div>`;
+    const rows = posts.map((p,i)=>{
+      const u = (p.profileUrl||'').trim();
+      const du = (p.deployUrl||'').trim();
+      const statCls = /방문 완료|완료/.test(p.visitStatus||'') ? 'status-done' : /대기|방문/.test(p.visitStatus||'') ? 'status-recruit' : /불참|미방문/.test(p.visitStatus||'') ? 'status-delay' : 'status-recruit';
+      return `<tr>
+        <td style="text-align:center">${(p.store||'—').replace(/점$/,'')}</td>
+        <td>${u ? `<a href="${u}" target="_blank" rel="noopener noreferrer" style="color:#0071e3;font-weight:700;text-decoration:underline">${p.xhsAccount||'프로필'}🔗</a>` : p.xhsAccount||'—'}</td>
+        <td style="color:#6e6e73">${p.wechatName||p.visitorName||'—'}</td>
+        <td class="num">${p.followers||'—'}</td>
+        <td class="num">${p.likes||'—'}</td>
+        <td style="text-align:center"><span class="bm-chip bmc-up" style="padding:2px 8px;font-size:11px">${p.type||'—'}</span></td>
+        <td style="white-space:nowrap">${p.visitDate||'—'} ${p.visitTime?' '+p.visitTime:''}</td>
+        <td style="text-align:center"><span class="status-badge ${statCls}" style="font-size:10px;padding:2px 6px">${p.visitStatus||'대기'}</span></td>
+        <td style="font-size:11px;color:#6e6e73;max-width:220px">${p.item||'<span style="color:#c7c7cc">—</span>'}</td>
+        <td>${du ? `<a href="${du}" target="_blank" rel="noopener noreferrer" style="color:#30d158;font-weight:800;text-decoration:underline">${p.deployDate||'배포링크'}🔗</a>` : (p.deployDate ? `<span style="color:#86868b">${p.deployDate}</span>` : '<span style="color:#c7c7cc">미배포</span>')}</td>
+      </tr>`;
+    }).join('');
+    const head = `<table class="bm-table bm-post-tbl"><thead><tr>
+      <th style="width:64px">지점</th><th>小红书 계정 (프로필 링크)</th><th style="width:100px">담당자/위쳇명</th><th class="num" style="width:80px">팔로워</th><th class="num" style="width:84px">좋아요·저장</th><th style="width:84px">유형</th><th style="width:120px">방문 일시</th><th style="width:72px">방문</th><th style="width:180px">제품·발송 주소</th><th>배포 링크 (직접 열기)</th>
+    </tr></thead><tbody>${rows}</tbody></table>`;
+    const foot = sheetLinksUnique.length ? `<div style="margin-top:8px;font-size:12px;color:#6e6e73">📎 원본 시트 보기：${sheetLinksUnique.map((su,i)=>`<a href="${su}" target="_blank" rel="noopener noreferrer" style="color:#0071e3;margin-right:14px">种草 목록 시트${sheetLinksUnique.length>1?' #'+(i+1):''}🔗</a>`).join('')}</div>` : '';
+    return head + foot;
+  })();
+
+  document.getElementById('bm-body').innerHTML = `
+    <section class="bm-section">
+      <h3 class="bm-s-title">① 기본 정보 · 계약 기간</h3>
+      <div class="bm-kv">
+        <div class="bm-kv-item"><span class="bm-kv-label">계약 번호</span><span class="bm-kv-value">${b.contractNo || '—'}</span></div>
+        <div class="bm-kv-item"><span class="bm-kv-label">계약 파일 (9.계약 폴더)</span><span class="bm-kv-value">${b.file || '—'}</span></div>
+        <div class="bm-kv-item"><span class="bm-kv-label">계약 기간</span><span class="bm-kv-value">${b.periodStart || '—'}  ~  ${b.periodEnd || '—'}</span></div>
+        <div class="bm-kv-item"><span class="bm-kv-label">브랜드 / 지역</span><span class="bm-kv-value">${b.brand} · ${b.region}</span></div>
+        <div class="bm-kv-item"><span class="bm-kv-label">계약 형식</span><span class="bm-kv-value">${b.representativeContract}</span></div>
+        <div class="bm-kv-item"><span class="bm-kv-label">기업 인증 (小红书)</span><span class="bm-kv-value">${b.corpCertStatus||'확인 중'}</span></div>
+      </div>
+    </section>
+
+    <section class="bm-section">
+      <h3 class="bm-s-title">② 월별 비용 (견적 · 수즈원가 · UP 마진 · 입금)</h3>
+      ${monthTbl}
+    </section>
+
+    <section class="bm-section">
+      <h3 class="bm-s-title">③ 제공 서비스</h3>
+      <div class="bm-chip-row">${svcChips}</div>
+    </section>
+
+    <section class="bm-section">
+      <h3 class="bm-s-title">④ 누가 담당? (수즈 vs 유피)</h3>
+      <div class="bm-owner-grid">
+        <div class="bm-owner-card">
+          <span class="bm-owner-label">계정 운영 담당</span>
+          <span class="bm-owner-value">${b.opsOwner}</span>
+          <span class="bm-owner-sub">${b.opsKey==='유피단독'||b.opsKey==='유피' ? '손혜민 · UP 직접 운영' : '수즈(디지털네이티브스) 대행'}</span>
+        </div>
+        <div class="bm-owner-card">
+          <span class="bm-owner-label">시딩 (KOC) 담당</span>
+          <span class="bm-owner-value">${b.seedingOwnerLabel}</span>
+          <span class="bm-owner-sub">${b.seedingKey==='수즈' ? '유상 시딩 = 수즈 팀' : b.seedingKey==='유피' ? '무상 시딩 = UP INTER 직접' : '시딩 없음 (계정만)'}</span>
+        </div>
+        <div class="bm-owner-card">
+          <span class="bm-owner-label">영업 / PM</span>
+          <span class="bm-owner-value">${(b.managersList||[]).join(' · ') || '손혜민'}</span>
+          <span class="bm-owner-sub">브랜드 커뮤니케이션 및 청구</span>
+        </div>
+        <div class="bm-owner-card">
+          <span class="bm-owner-label">마진율 (평균)</span>
+          <span class="bm-owner-value ${b.marginRate>=30?'good':''}">${b.marginRate}%</span>
+          <span class="bm-owner-sub">총 견적 ₩ ${formatNumber(b.total)} → 마진 ₩ ${formatNumber(b.margin)}</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="bm-section">
+      <h3 class="bm-s-title">⑤ 월별 무상 시딩 진행 현황</h3>
+      ${seedHtml}
+    </section>
+
+    <section class="bm-section">
+      <h3 class="bm-s-title">⑥ 보고서 · ⑦ 8월 청산 · ⑧ 9월 청구</h3>
+      ${reportHtml}
+    </section>
+
+    <section class="bm-section">
+      <h3 class="bm-s-title">⑨ 种草笔记 进行情况 · 小红书 KOC 现场访问 & 发布链接 (<span style="color:#0071e3">링크 클릭시 直接 열기</span>)</h3>
+      ${postsHtml}
+    </section>
+
+    ${b.notes ? `<div class="bm-note">📝 ${b.notes}</div>` : ''}
+  `;
+  elOv.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeBrandModal() {
+  const el = document.getElementById('brandModalOverlay');
+  if (el) el.classList.remove('show');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeBrandModal();
+});
+
+window.openBrandModal = openBrandModal;
+window.closeBrandModal = closeBrandModal;
+
 function updateSyncStatus(text) {
   const el = document.getElementById('syncStatus');
   if (el) el.textContent = text;
@@ -942,6 +1619,20 @@ function bindEvents() {
     }, 200);
   });
   bindPaymentEvents();
+
+  ['contractFilterRegion','contractFilterType','contractFilterStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('change', e => {
+      const key = id === 'contractFilterRegion' ? 'region' : id === 'contractFilterType' ? 'type' : 'status';
+      AppState.contractFilters[key] = e.target.value;
+      renderContracts();
+    });
+  });
+  const cfs = document.getElementById('contractFilterSearch');
+  if (cfs) {
+    cfs.addEventListener('input', e => { AppState.contractFilters.search = e.target.value; renderContracts(); });
+  }
 }
 
 function switchTab(tab) {
@@ -989,6 +1680,8 @@ function renderAll() {
   renderContent();
   renderGrowth();
   renderPayment();
+  renderHandoff();
+  renderContracts();
 }
 
 document.addEventListener('DOMContentLoaded', () => {

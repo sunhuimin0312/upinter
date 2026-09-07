@@ -1368,3 +1368,558 @@ html, body {
   background: rgba(19,115,51,0.10);
   color: #137333;
 }
+.region-tag.region-김해 {
+  background: rgba(19,115,51,0.10);
+  color: #137333;
+}
+.contract-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  background: rgba(94,92,230,0.10);
+  color: var(--accent-indigo);
+}
+
+.handoff-brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+  margin-bottom: 28px;
+}
+.handoff-brand-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.handoff-brand-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+.hbc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--border);
+}
+.hbc-head > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hbc-brand {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+.hbc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+.hbc-row {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.hbc-k {
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+.hbc-v {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.hbc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: var(--surface-alt);
+  border-radius: var(--radius-md);
+}
+.hbc-footer strong {
+  margin-left: 4px;
+}
+
+.handoff-table {
+  min-width: 1280px;
+}
+.handoff-table td.num {
+  font-weight: 700;
+  white-space: nowrap;
+}
+.handoff-table tfoot { background: var(--surface-alt); }
+.handoff-table tfoot td {
+  font-weight: 800 !important;
+  color: var(--text-primary) !important;
+  padding-top: 14px;
+  padding-bottom: 14px;
+  border-top: 2px solid var(--border-strong);
+}
+
+.handoff-status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+.handoff-status-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+}
+.hsc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border);
+  font-size: 14px;
+}
+.hsc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.hsc-item {
+  display: grid;
+  grid-template-columns: 16px 80px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.hsc-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.hsc-value {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-size: 12.5px;
+}
+.hsc-status-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  justify-self: center;
+}
+.status-dot-done {
+  background: var(--accent-green);
+  box-shadow: 0 0 0 3px rgba(48,209,88,0.14);
+}
+.status-dot-wait {
+  background: var(--accent-orange);
+  box-shadow: 0 0 0 3px rgba(255,159,10,0.14);
+}
+.status-dot-delay {
+  background: #ff3b30;
+  box-shadow: 0 0 0 3px rgba(255,59,48,0.12);
+}
+.status-dot-na {
+  background: var(--border-strong);
+  box-shadow: 0 0 0 3px rgba(209,209,214,0.25);
+  opacity: .7;
+}
+.hsc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: var(--surface-alt);
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.status-done {
+  background: rgba(48,209,88,0.12);
+  color: #117c34;
+}
+.status-recruit {
+  background: rgba(255,159,10,0.12);
+  color: #a35b00;
+}
+.status-delay {
+  background: rgba(255,59,48,0.10);
+  color: #c9180e;
+}
+.status-distribute {
+  background: rgba(0,113,227,0.12);
+  color: #0066cc;
+}
+
+@media (max-width: 960px) {
+  .handoff-brand-grid { grid-template-columns: 1fr; }
+  .handoff-status-grid { grid-template-columns: 1fr; }
+}
+
+/* ============================================================
+   01 브랜드 계약 관리 (contract-brand-grid · Modal)
+============================================================ */
+
+.contract-brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.cb-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px 18px 18px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 14px rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.04);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+}
+.cb-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+  border-color: rgba(0,113,227,0.2);
+}
+.cb-card.is-fileonly::after {
+  content: "📄 파일만 등록";
+  position: absolute;
+  top: 10px;
+  right: -46px;
+  background: linear-gradient(135deg,#8e8e93,#636366);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 48px;
+  transform: rotate(35deg);
+  letter-spacing: 0.3px;
+}
+.cb-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.cb-brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1d1d1f;
+  line-height: 1.35;
+  margin: 0;
+}
+.cb-contract-no {
+  font-size: 10px;
+  color: #86868b;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  font-family: ui-monospace, Consolas, monospace;
+}
+.cb-region-tag {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+.region-서울 { background: #0071e3; }
+.region-대구 { background: #ff3b30; }
+.region-김해,.region-부산,.region-김해·부산 { background: #30d158; color: #0b4e1d; }
+
+.cb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cb-tag {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(88,86,214,0.11);
+  color: #3f3da7;
+  line-height: 1.4;
+}
+.cb-tag.tag-ops-up { background: rgba(48,209,88,0.12); color: #117c34; }
+.cb-tag.tag-ops-suz { background: rgba(255,159,10,0.12); color: #a35b00; }
+.cb-tag.tag-seed-up { background: rgba(0,113,227,0.10); color: #0066cc; }
+.cb-tag.tag-seed-suz { background: rgba(175,82,222,0.12); color: #834bb5; }
+.cb-tag.tag-manager { background: rgba(0,0,0,0.04); color: #3c3c43; opacity: 0.9; }
+
+.cb-sum {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  background: #f7f7fa;
+  border-radius: 10px;
+  margin-top: 2px;
+}
+.cb-sum-item { display: flex; flex-direction: column; gap: 2px; }
+.cb-sum-label { font-size: 10px; font-weight: 600; color: #86868b; letter-spacing: 0.2px; }
+.cb-sum-value { font-size: 13px; font-weight: 700; color: #1d1d1f; }
+.cb-sum-value.won { font-family: ui-monospace, Consolas, monospace; }
+.cb-sum-value.margin-good { color: #117c34; }
+.cb-sum-value.remain { color: #c9180e; }
+
+.cb-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0,0,0,0.08);
+}
+.cb-period { font-size: 11px; color: #86868b; font-weight: 600; }
+.cb-status-pill {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+/* ------- Brand Modal ------- */
+.bm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.42);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  z-index: 999;
+  padding: 40px 20px;
+  overflow-y: auto;
+}
+.bm-overlay.show { display: flex; animation: bmFade 0.2s ease; }
+@keyframes bmFade { from { opacity: 0; } to { opacity: 1; } }
+.bm-modal {
+  background: #fbfbfd;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 980px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.28), 0 4px 14px rgba(0,0,0,0.12);
+  overflow: hidden;
+  animation: bmSlide 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes bmSlide { from { transform: translateY(20px) scale(0.98); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
+.bm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 26px 18px;
+  background: #fff;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.bm-contractno { font-size: 11px; font-weight: 700; color: #86868b; letter-spacing: 0.5px; font-family: ui-monospace, Consolas, monospace; margin-bottom: 4px; }
+.bm-title { font-size: 26px; font-weight: 800; color: #1d1d1f; margin: 0 0 4px; letter-spacing: -0.3px; }
+.bm-subtitle { font-size: 13px; color: #6e6e73; font-weight: 600; display: flex; gap: 8px; flex-wrap: wrap; }
+.bm-close {
+  border: none;
+  background: rgba(0,0,0,0.06);
+  color: #6e6e73;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+.bm-close:hover { background: rgba(0,0,0,0.12); color: #1d1d1f; }
+
+.bm-body { padding: 24px 26px 28px; display: flex; flex-direction: column; gap: 22px; }
+
+.bm-section { background: #fff; border-radius: 14px; padding: 16px 18px 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.03), 0 2px 10px rgba(0,0,0,0.03); }
+.bm-s-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0071e3;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bm-s-title::before {
+  content: "";
+  width: 4px;
+  height: 14px;
+  background: #0071e3;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* ① 기본 정보 · 계약 기간 Grid */
+.bm-kv {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 18px;
+}
+.bm-kv-item { display: flex; flex-direction: column; gap: 4px; }
+.bm-kv-label { font-size: 11px; color: #86868b; font-weight: 700; letter-spacing: 0.3px; }
+.bm-kv-value { font-size: 14px; color: #1d1d1f; font-weight: 600; line-height: 1.45; }
+.bm-kv-value.bad { color: #c9180e; }
+.bm-kv-value.good { color: #117c34; }
+
+/* ② 월별 비용 Table */
+.bm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.bm-table th, .bm-table td {
+  padding: 10px 12px;
+  text-align: right;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  font-weight: 600;
+}
+.bm-table th:first-child, .bm-table td:first-child { text-align: left; }
+.bm-table th {
+  font-size: 11px;
+  color: #86868b;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  background: #f7f7fa;
+  position: sticky;
+  top: 0;
+}
+.bm-table tbody tr:hover { background: #f0f6ff; }
+.bm-table .num { font-family: ui-monospace, Consolas, monospace; }
+.bm-table tfoot td {
+  border-top: 2px solid #1d1d1f;
+  font-weight: 800;
+  background: #fff;
+}
+
+/* ③ 제공 서비스 칩 */
+.bm-chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.bm-chip {
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(88,86,214,0.10);
+  color: #3f3da7;
+  font-weight: 700;
+  font-size: 12.5px;
+}
+.bm-chip.bmc-suz { background: rgba(255,159,10,0.12); color: #a35b00; }
+.bm-chip.bmc-up  { background: rgba(48,209,88,0.12); color: #117c34; }
+
+/* ④ 담당자 매트릭 (4열) */
+.bm-owner-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+.bm-owner-card {
+  padding: 14px 16px;
+  background: #f7f7fa;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.bm-owner-label { font-size: 11px; color: #86868b; font-weight: 700; letter-spacing: 0.3px; }
+.bm-owner-value { font-size: 14px; color: #1d1d1f; font-weight: 800; }
+.bm-owner-sub { font-size: 11px; color: #6e6e73; font-weight: 600; }
+
+/* ⑤ 월별 시딩 */
+.bm-seed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.bm-seed-month {
+  background: #f7f7fa;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.bm-seed-m { font-size: 12px; font-weight: 800; color: #0071e3; letter-spacing: 0.5px; }
+.bm-seed-item { display: flex; justify-content: space-between; font-size: 12px; color: #3c3c43; }
+.bm-seed-item b { color: #1d1d1f; font-weight: 700; }
+.bm-seed-empty { padding: 10px 0; text-align: center; color: #86868b; font-weight: 600; font-size: 12px; }
+
+/* ⑥ 보고서 · ⑦⑧ 청산/청구 현황 카드 */
+.bm-report-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.bm-report-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(0,0,0,0.06);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bm-report-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.03);
+}
+.bm-report-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.bm-report-label { font-size: 10.5px; color: #86868b; font-weight: 700; letter-spacing: 0.25px; }
+.bm-report-value { font-size: 13px; color: #1d1d1f; font-weight: 700; line-height: 1.3; }
+.bm-report-value.warn { color: #a35b00; }
+.bm-report-value.bad  { color: #c9180e; }
+.bm-report-value.good { color: #117c34; }
+
+.bm-note {
+  padding: 12px 16px;
+  background: #fff7e6;
+  border-left: 4px solid #ff9f0a;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: #6b4600;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+@media (max-width: 960px) {
+  .contract-brand-grid { grid-template-columns: 1fr; }
+  .bm-overlay { padding: 0; }
+  .bm-modal { border-radius: 0; min-height: 100vh; }
+  .bm-header { padding: 18px 18px 14px; }
+  .bm-body { padding: 18px 16px 24px; }
+  .bm-title { font-size: 22px; }
+}

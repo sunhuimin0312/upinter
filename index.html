@@ -13,20 +13,12 @@
         <h1 class="nav-title">샤오홍슈 운영 <span class="nav-subtitle">무상시딩 · 자사 계정 · 결제</span></h1>
       </div>
       <div class="nav-tabs">
-        <button class="tab-btn active" data-tab="seeding">
+        <button class="tab-btn active" data-tab="contracts">
           <span class="tab-num">01</span>
-          <span class="tab-label">무상시딩</span>
-        </button>
-        <button class="tab-btn" data-tab="content">
-          <span class="tab-num">02</span>
-          <span class="tab-label">계정 콘텐츠</span>
-        </button>
-        <button class="tab-btn" data-tab="growth">
-          <span class="tab-num">03</span>
-          <span class="tab-label">월별 성장</span>
+          <span class="tab-label">브랜드 계약 관리</span>
         </button>
         <button class="tab-btn" data-tab="payment">
-          <span class="tab-num">04</span>
+          <span class="tab-num">02</span>
           <span class="tab-label">브랜드 결제</span>
         </button>
       </div>
@@ -36,7 +28,55 @@
     </nav>
 
     <main class="main">
-      <section id="tab-seeding" class="tab-content active">
+      <section id="tab-contracts" class="tab-content active">
+        <div class="section-header">
+          <div class="section-tag">2026 Brand contract management</div>
+          <h2 class="section-title">
+            2026년 협업 브랜드 계약 관리
+            <span class="section-sub">· 계약 기간 · 월비용 · 서비스 · 담당자 · 시딩 · 청산 통합 조회</span>
+          </h2>
+          <div class="section-month-nav">
+            <span class="month-nav-item">📄 계약 파일 <span id="contractFileCount">15</span>건</span>
+            <span class="month-nav-divider">·</span>
+            <span class="month-nav-item">브랜드 <span id="contractBrandCount">31</span>개</span>
+            <span class="month-nav-divider">·</span>
+            <span class="month-nav-item active">클릭하면 상세 보기 ✨</span>
+          </div>
+        </div>
+
+        <div class="stats-row" id="contractKpiRow"></div>
+
+        <div class="filters-row">
+          <select class="filter-select" id="contractFilterRegion">
+            <option value="all">지역 전체</option>
+            <option value="서울">서울</option>
+            <option value="대구">대구</option>
+            <option value="김해·부산">김해·부산</option>
+          </select>
+          <select class="filter-select" id="contractFilterType">
+            <option value="all">계약 형식 전체</option>
+            <option value="파일만등록">계약 파일 등록 (데이터 미입력)</option>
+            <option value="유피100">유피 100% · 직접 운영</option>
+            <option value="수즈대행">수즈 대행 (18%·40%·60%)</option>
+          </select>
+          <select class="filter-select" id="contractFilterStatus">
+            <option value="all">결제 상태 전체</option>
+            <option value="완료">입금 완료</option>
+            <option value="대기">입금 대기</option>
+            <option value="지연">미입금 지연</option>
+            <option value="미집행">데이터 없음</option>
+          </select>
+          <input type="text" class="filter-search" id="contractFilterSearch" placeholder="브랜드 · 계약번호 · 담당자 검색">
+        </div>
+
+        <h3 class="sub-section-title">
+          브랜드 카드 · 클릭 상세
+          <span class="post-count-badge" id="contractCountBadge">0개</span>
+        </h3>
+        <div class="contract-brand-grid" id="contractBrandGrid"></div>
+      </section>
+
+      <section id="tab-seeding" class="tab-content">
         <div class="section-header">
           <div class="section-tag">Free seeding · <span id="currentMonthTag">8월</span></div>
           <h2 class="section-title">
@@ -375,6 +415,21 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <div id="brandModalOverlay" class="bm-overlay" onclick="if(event.target===this)closeBrandModal()">
+    <div class="bm-modal" role="dialog" aria-modal="true" aria-labelledby="bm-title">
+      <header class="bm-header">
+        <div>
+          <div class="bm-contractno" id="bm-contractno">계약번호</div>
+          <h2 class="bm-title" id="bm-title">브랜드명</h2>
+          <div class="bm-subtitle" id="bm-subtitle">지역 · 계약형식 · 영업담당</div>
+        </div>
+        <button class="bm-close" onclick="closeBrandModal()" aria-label="닫기">×</button>
+      </header>
+
+      <div class="bm-body" id="bm-body"></div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
